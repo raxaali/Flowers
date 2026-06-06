@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flower Garden For You</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: #000000;
+            color: #ffffff;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* Canvas for drawing the flowers */
+        #gardenCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        /* UI Overlay */
+        .ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+            pointer-events: none; /* Let clicks pass through to canvas */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .top-left-title {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 1rem;
+            font-weight: 600;
+            color: #e2e8f0;
+        }
+
+        .center-text {
+            text-align: center;
+            transition: opacity 0.5s ease;
+        }
+
+        .center-text p {
+            font-size: 1.2rem;
+            color: #cbd5e1;
+            margin-bottom: 10px;
+        }
+
+        .center-text h1 {
+            font-size: 3.5rem;
+            color: #fbcfe8;
+            font-family: 'Georgia', serif;
+            margin-bottom: 10px;
+            text-shadow: 0 0 10px rgba(251, 207, 232, 0.5);
+        }
+
+        .controls {
+            position: absolute;
+            bottom: 40px;
+            display: flex;
+            gap: 20px;
+            pointer-events: auto; /* Re-enable clicks for buttons */
+        }
+
+        button {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 10px 20px;
+            border-radius: 20px;
+            color: white;
+            font-size: 0.9rem;
+            cursor: pointer;
+            backdrop-filter: blur(5px);
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        button:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: scale(1.05);
+        }
+
+        .footer-text {
+            position: absolute;
+            bottom: 10px;
+            right: 20px;
+            font-size: 0.7rem;
+            color: #64748b;
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="gardenCanvas"></canvas>
+
+    <div class="ui-layer">
+        <div class="top-left-title">🌸 Flower Garden For You</div>
+        
+        <div class="center-text" id="centerText">
+            <p>Click Anywhere to</p>
+            <h1>Plant Flowers</h1>
+            <p>🌺 or turn on Auto Bloom</p>
+        </div>
+
+        <div class="controls">
+            <button id="clearBtn">🧹 Clear Garden</button>
+            <button id="autoBtn">▶ Auto Bloom</button>
+        </div>
+
+        <div class="footer-text">Made with 💕 | Tap to grow flowers</div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gardenCanvas');
+        const ctx = canvas.getContext('2d');
+        const centerText = document.getElementById('centerText');
+        const clearBtn = document.getElementById('clearBtn');
+        const autoBtn = document.getElementById('autoBtn');
+
+        // Resize canvas to fill window
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        const flowers = [];
+        const flowerColors = ['#ff718d', '#a471ff', '#ffd071', '#ff4d4d', '#ff9ced', '#71b2ff'];
+        let autoBloomInterval = null;
+
+        class Flower {
+            constructor(x, y) {
+                this.x = x;
+                this.startY = canvas.height + 50; // Start below screen
+                this.targetY = y || canvas.height - (Math.random() * 300 + 150); // Random height if not clicked at specific y
+                
+                // Keep targetY somewhat near the bottom
+                if (this.targetY < canvas.height / 2) {
+                    this.targetY = canvas.height / 2 + Math.random() * 100;
+                }
+
+                this.currentY = this.startY;
+                this.color = flowerColors[Math.floor(Math.random() * flowerColors.length)];
+                
+                // Animation states
+                this.stemSpeed = Math.random() * 3 + 4;
+                this.bloomSize = 0;
+                this.maxBloomSize = Math.random() * 15 + 20;
+                this.bloomSpeed = Math.random() * 0.5 + 0.5;
+                this.isStemGrown = false;
+                
+                // Slight curve to the stem
+                this.curve = (Math.random() - 0.5) * 50;
+                this.controlX = this.x + this.curve;
+            }
+
+            update() {
+                if (this.currentY > this.targetY) {
+                    this.currentY -= this.stemSpeed;
+                } else {
+                    this.isStemGrown = true;
+                    if (this.bloomSize < this.maxBloomSize) {
+                        this.bloomSize += this.bloomSpeed;
+                    }
+                }
+            }
+
+            draw() {
+                // Draw Stem
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.startY);
+                ctx.quadraticCurveTo(this.controlX, (this.startY + this.currentY) / 2, this.x, this.currentY);
+                ctx.strokeStyle = '#4ade80'; // Green stem
+                ctx.lineWidth = 3;
+                ctx.stroke();
+
+                // Draw Flower Head
+                if (this.isStemGrown) {
+                    ctx.save();
+                    ctx.translate(this.x, this.currentY);
+                    
+                    // Glow effect
+                    ctx.shadowBlur = 20;
+                    ctx.shadowColor = this.color;
+                    ctx.fillStyle = this.color;
+
+                    // Draw Petals
+                    const petalCount = 6;
+                    for (let i = 0; i < petalCount; i++) {
+                        ctx.rotate((Math.PI * 2) / petalCount);
+                        ctx.beginPath();
+                        // Ellipse acts as a petal
+                        ctx.ellipse(0, this.bloomSize / 1.5, this.bloomSize / 2.5, this.bloomSize, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+
+                    // Flower Center
+                    ctx.beginPath();
+                    ctx.arc(0, 0, this.bloomSize / 2.5, 0, Math.PI * 2);
+                    ctx.fillStyle = '#fff';
+                    ctx.shadowBlur = 5;
+                    ctx.fill();
+                    
+                    ctx.restore();
+                }
+            }
+        }
+
+        // Animation Loop
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            flowers.forEach(flower => {
+                flower.update();
+                flower.draw();
+            });
+
+            requestAnimationFrame(animate);
+        }
+
+        // Add flower on click
+        canvas.addEventListener('click', (e) => {
+            centerText.style.opacity = '0'; // Hide instructions
+            flowers.push(new Flower(e.clientX, e.clientY));
+        });
+
+        // Clear Garden Button
+        clearBtn.addEventListener('click', () => {
+            flowers.length = 0;
+            centerText.style.opacity = '1'; // Show instructions again
+            if (autoBloomInterval) {
+                clearInterval(autoBloomInterval);
+                autoBloomInterval = null;
+                autoBtn.innerHTML = '▶ Auto Bloom';
+                autoBtn.style.background = 'rgba(255, 255, 255, 0.1)';
+            }
+        });
+
+        // Auto Bloom Button
+        autoBtn.addEventListener('click', () => {
+            centerText.style.opacity = '0'; // Hide instructions
+            if (autoBloomInterval) {
+                // Turn off
+                clearInterval(autoBloomInterval);
+                autoBloomInterval = null;
+                autoBtn.innerHTML = '▶ Auto Bloom';
+                autoBtn.style.background = 'rgba(255, 255, 255, 0.1)';
+            } else {
+                // Turn on
+                autoBtn.innerHTML = '⏸ Stop Auto';
+                autoBtn.style.background = 'rgba(255, 113, 141, 0.4)'; // Pink tint when active
+                autoBloomInterval = setInterval(() => {
+                    const randomX = Math.random() * canvas.width;
+                    const randomY = canvas.height - (Math.random() * 400 + 100);
+                    flowers.push(new Flower(randomX, randomY));
+                }, 400); // Spawns a flower every 400ms
+            }
+        });
+
+        // Start animation
+        animate();
+    </script>
+</body>
+</html>
